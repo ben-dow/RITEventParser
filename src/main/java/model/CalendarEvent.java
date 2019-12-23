@@ -2,6 +2,8 @@ package model;
 
 import com.google.api.client.util.DateTime;
 
+import java.util.logging.Logger;
+
 
 public class CalendarEvent {
     private String EventName;
@@ -10,12 +12,17 @@ public class CalendarEvent {
     private String confirmationID;
     private String location;
 
+    Logger logger;
+
     public CalendarEvent(String eventName, DateTime startTime, DateTime endTime, String confirmationID, String location) {
+        logger = Logger.getLogger("EventLog");
         EventName = eventName;
         this.startTime = startTime;
         this.endTime = endTime;
         this.confirmationID = confirmationID;
         this.location = location;
+
+        logger.info("Created New Event: " + toString().replaceAll("\n", ""));
     }
 
     public String getEventName() {

@@ -9,3 +9,4 @@ tokens/
 .idea/
 *.MF
 .DS_STORE
+*.log

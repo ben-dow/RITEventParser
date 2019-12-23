@@ -33,6 +33,7 @@ import java.security.GeneralSecurityException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,9 +57,13 @@ public class GoogleController {
     private Gmail gmailService;
     private Calendar calendarService;
 
+    /** Logging **/
+    private Logger logger;
 
     public GoogleController(ApplicationController applicationController) {
         this.applicationController = applicationController;
+
+        logger = Logger.getLogger("EventLog");
     }
 
     /**
@@ -69,8 +74,10 @@ public class GoogleController {
      */
     private Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
         // Load client secrets.
+        logger.info("Loading Client Secrets");
         InputStream in = GoogleController.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
         if (in == null) {
+            logger.warning("Client Secrets not Found");
             throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
         }
         GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
@@ -88,9 +95,11 @@ public class GoogleController {
     public void authenticateUser() throws GeneralSecurityException, IOException {
         // Build a new authorized API client service.
         final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+        logger.info("Creating Gmail Service");
         gmailService= new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
                 .setApplicationName(APPLICATION_NAME)
                 .build();
+        logger.info("Creating Calendar Service");
         calendarService = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
                 .setApplicationName(APPLICATION_NAME)
                 .build();
@@ -102,13 +111,18 @@ public class GoogleController {
 
         // Print the labels in the user's account.
         String user = "me";
+        logger.info("Fetching Emails from RITEvents-NoReply@rit.edu");
         List<Message> messages = gmailService.users().messages().list(user).setQ("from:RITEvents-NoReply@rit.edu").execute().getMessages();
 
         if (messages.isEmpty()) {
         } else {
+            logger.info( messages.size()+" Found");
             applicationController.getCreationConfiguration().clearEvents();
             for (Message message : messages) {
+                logger.info( "Processing message" + message.getId());
+                logger.info("Fetching Additional Information");
                 Message msg = gmailService.users().messages().get(user,message.getId()).execute();
+
                 byte[] bodyBytes = Base64.decodeBase64(msg.getPayload().getBody().getData());
                 String text = new String(bodyBytes, StandardCharsets.UTF_8).replaceAll("<\\s*[^>]*>","");
 
@@ -121,12 +135,15 @@ public class GoogleController {
                     resNumber = resNumberMatcher.group(1);
                 }
 
+                logger.info("Found Res Number: " + resNumber);
+
                 String eventInfoRegex = "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (January|Feburary|March|April|May|June|July|August|September|October|November|December) (\\d?\\d), (20\\d\\d)\\r\\n(\\d?\\d:\\d\\d PM|AM) - (\\d?\\d:\\d\\d PM|AM) (.*) \\(Student Org Event Request\\) (.*) \\(.*\\)?";
                 Pattern eventInfoPattern = Pattern.compile(eventInfoRegex);
                 Matcher eventInfoMatcher = eventInfoPattern.matcher(text);
                 ArrayList<CalendarEvent> events = new ArrayList<>();
 
                 while (eventInfoMatcher.find()) {
+                    logger.info("Found Regex Match for message: " + msg.getId());
                     String eventName = eventInfoMatcher.group(7);
                     String location = eventInfoMatcher.group(8);
                     StringBuilder startDatetimeStr = new StringBuilder();
@@ -161,14 +178,17 @@ public class GoogleController {
                         endDatetime = new DateTime(endDate);
 
 
-
+                        logger.info("Attempting to Create New Event");
                         events.add(new CalendarEvent(eventName, startDatetime, endDatetime, resNumber, location));
 
                     } catch (ParseException e) {
+                        logger.warning(Arrays.toString(e.getStackTrace()));
                         e.printStackTrace();
                     }
 
                 }
+                logger.info("Adding Events and Going to Next Message");
+                logger.info(events.size() + " Found in this Message");
                 applicationController.getCreationConfiguration().addEvents(events);
             }
         }
