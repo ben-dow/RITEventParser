@@ -22,6 +22,7 @@ import com.google.api.services.calendar.CalendarScopes;
 import com.google.api.services.gmail.model.Label;
 import com.google.api.services.gmail.model.ListLabelsResponse;
 import com.google.api.services.gmail.model.Message;
+import com.google.api.services.gmail.model.MessagePart;
 import model.CalendarEvent;
 
 import java.io.FileNotFoundException;
@@ -111,8 +112,8 @@ public class GoogleController {
 
         // Print the labels in the user's account.
         String user = "me";
-        logger.info("Fetching Emails from RITEvents-NoReply@rit.edu");
-        List<Message> messages = gmailService.users().messages().list(user).setQ("from:RITEvents-NoReply@rit.edu").execute().getMessages();
+        logger.info("\"Reservation\" \"for RIT Players\"");
+        List<Message> messages = gmailService.users().messages().list(user).setQ("\"Reservation\" \"for RIT Players\" ").execute().getMessages();
 
         if (messages.isEmpty()) {
         } else {
@@ -124,10 +125,16 @@ public class GoogleController {
                 Message msg = gmailService.users().messages().get(user,message.getId()).execute();
 
                 byte[] bodyBytes = Base64.decodeBase64(msg.getPayload().getBody().getData());
-                String text = new String(bodyBytes, StandardCharsets.UTF_8).replaceAll("<\\s*[^>]*>","");
+                String text = "";
+                if(bodyBytes != null){
+                    text += new String(bodyBytes, StandardCharsets.UTF_8).replaceAll("<\\s*[^>]*>","");
+                }
+                StringBuilder builder = new StringBuilder();
+                getPlainTextFromMessageParts(msg.getPayload().getParts(),builder);
+                text += builder.toString().replaceAll("<\\s*[^>]*>","");
 
 
-                String resNumberRegex = "Reservation (\\d\\d\\d\\d\\d\\d)";
+                String resNumberRegex = "Reservation (\\d*)";
                 Pattern resNumberPattern = Pattern.compile(resNumberRegex);
                 Matcher resNumberMatcher = resNumberPattern.matcher(text);
                 String resNumber = "";
@@ -137,15 +144,15 @@ public class GoogleController {
 
                 logger.info("Found Res Number: " + resNumber);
 
-                String eventInfoRegex = "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (January|Feburary|March|April|May|June|July|August|September|October|November|December) (\\d?\\d), (20\\d\\d)\\r\\n(\\d?\\d:\\d\\d PM|AM) - (\\d?\\d:\\d\\d PM|AM) (.*) \\(Student Org Event Request\\) (.*) \\(.*\\)?";
+                String eventInfoRegex = "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (January|Feburary|March|April|May|June|July|August|September|October|November|December) (\\d?\\d), (20\\d\\d)\\r\\n\\r?\\n?(\\d?\\d:\\d\\d (PM|AM)) - (\\d?\\d:\\d\\d (PM|AM)) (.*) \\(Student Org (Space|Event) (Confirmed|Request|Approved)\\) (.*)";
                 Pattern eventInfoPattern = Pattern.compile(eventInfoRegex);
                 Matcher eventInfoMatcher = eventInfoPattern.matcher(text);
                 ArrayList<CalendarEvent> events = new ArrayList<>();
 
                 while (eventInfoMatcher.find()) {
                     logger.info("Found Regex Match for message: " + msg.getId());
-                    String eventName = eventInfoMatcher.group(7);
-                    String location = eventInfoMatcher.group(8);
+                    String eventName = eventInfoMatcher.group(9);
+                    String location = eventInfoMatcher.group(12);
                     StringBuilder startDatetimeStr = new StringBuilder();
                     StringBuilder endDatetimeStr = new StringBuilder();
                     DateTime startDatetime;
@@ -165,7 +172,7 @@ public class GoogleController {
                     endDatetimeStr.append(" ");
                     endDatetimeStr.append(eventInfoMatcher.group(4));
                     endDatetimeStr.append(" ");
-                    endDatetimeStr.append(eventInfoMatcher.group(6));
+                    endDatetimeStr.append(eventInfoMatcher.group(7));
 
                     try {
                         String datePattern = "MMMMM dd yyyy hh:mm a";
@@ -190,6 +197,19 @@ public class GoogleController {
                 logger.info("Adding Events and Going to Next Message");
                 logger.info(events.size() + " Found in this Message");
                 applicationController.getCreationConfiguration().addEvents(events);
+            }
+        }
+    }
+
+    private void getPlainTextFromMessageParts(List<MessagePart> messageParts, StringBuilder stringBuilder) {
+        if (messageParts != null) {
+            for (MessagePart messagePart : messageParts) {
+                if (messagePart.getBody() != null && messagePart.getBody().getData() != null) {
+                    stringBuilder.append(new String( Base64.decodeBase64(messagePart.getBody().getData())));
+                }
+                if (messagePart.getParts() != null) {
+                    getPlainTextFromMessageParts(messagePart.getParts(), stringBuilder);
+                }
             }
         }
     }
