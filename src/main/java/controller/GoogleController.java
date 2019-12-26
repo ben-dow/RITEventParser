@@ -13,18 +13,17 @@ import com.google.api.client.util.Base64;
 import com.google.api.client.util.DateTime;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.calendar.Calendar;
+import com.google.api.services.calendar.CalendarScopes;
 import com.google.api.services.calendar.model.CalendarListEntry;
 import com.google.api.services.calendar.model.Event;
 import com.google.api.services.calendar.model.EventDateTime;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
-import com.google.api.services.calendar.CalendarScopes;
-import com.google.api.services.gmail.model.Label;
-import com.google.api.services.gmail.model.ListLabelsResponse;
 import com.google.api.services.gmail.model.Message;
 import com.google.api.services.gmail.model.MessagePart;
 import model.CalendarEvent;
 
+import javax.swing.*;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,7 +32,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -105,24 +108,65 @@ public class GoogleController {
                 .setApplicationName(APPLICATION_NAME)
                 .build();
 
-        applicationController.advanceWindows();
+        applicationController.getCreationConfiguration().setAuthenticated(true);
     }
 
     public void fetchGmailMessages() throws IOException {
+
+        applicationController.getCreationConfiguration().clearEvents();
 
         // Print the labels in the user's account.
         String user = "me";
         logger.info("\"Reservation\" \"for RIT Players\"");
         List<Message> messages = gmailService.users().messages().list(user).setQ("\"Reservation\" \"for RIT Players\" ").execute().getMessages();
 
+        applicationController.getCreationConfiguration().setTotalMessageFound(messages.size());
+        applicationController.getCreationConfiguration().resetMessagesProcessed();
+
         if (messages.isEmpty()) {
         } else {
             logger.info( messages.size()+" Found");
             applicationController.getCreationConfiguration().clearEvents();
             for (Message message : messages) {
-                logger.info( "Processing message" + message.getId());
+                processMessage(message.getId());
+            }
+        }
+    }
+
+    private void getPlainTextFromMessageParts(List<MessagePart> messageParts, StringBuilder stringBuilder) {
+        if (messageParts != null) {
+            for (MessagePart messagePart : messageParts) {
+                if (messagePart.getBody() != null && messagePart.getBody().getData() != null) {
+                    stringBuilder.append(new String( Base64.decodeBase64(messagePart.getBody().getData())));
+                }
+                if (messagePart.getParts() != null) {
+                    getPlainTextFromMessageParts(messagePart.getParts(), stringBuilder);
+                }
+            }
+        }
+    }
+
+    private void processMessage(String messageId){
+
+        SwingWorker<List<CalendarEvent>, Void> worker = new SwingWorker<List<CalendarEvent>, Void>() {
+            @Override
+            protected void done() {
+                try {
+                    List<CalendarEvent> events = get();
+                    applicationController.getCreationConfiguration().addEvents(events);
+                    applicationController.getCreationConfiguration().incrementMessagesProcessed();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            protected List<CalendarEvent> doInBackground() throws Exception {
+                logger.info( "Processing message" + messageId);
                 logger.info("Fetching Additional Information");
-                Message msg = gmailService.users().messages().get(user,message.getId()).execute();
+                Message msg = gmailService.users().messages().get("me", messageId).execute();
 
                 byte[] bodyBytes = Base64.decodeBase64(msg.getPayload().getBody().getData());
                 String text = "";
@@ -196,22 +240,11 @@ public class GoogleController {
                 }
                 logger.info("Adding Events and Going to Next Message");
                 logger.info(events.size() + " Found in this Message");
-                applicationController.getCreationConfiguration().addEvents(events);
+                return events;
             }
-        }
-    }
+        };
 
-    private void getPlainTextFromMessageParts(List<MessagePart> messageParts, StringBuilder stringBuilder) {
-        if (messageParts != null) {
-            for (MessagePart messagePart : messageParts) {
-                if (messagePart.getBody() != null && messagePart.getBody().getData() != null) {
-                    stringBuilder.append(new String( Base64.decodeBase64(messagePart.getBody().getData())));
-                }
-                if (messagePart.getParts() != null) {
-                    getPlainTextFromMessageParts(messagePart.getParts(), stringBuilder);
-                }
-            }
-        }
+        worker.execute();
     }
 
     public void fetchCalendars() throws IOException {

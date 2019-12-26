@@ -6,10 +6,12 @@ import controller.GoogleController;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 
-public class GoogleAuthentication extends JPanel {
+public class GoogleAuthentication extends JPanel implements PropertyChangeListener {
 
     JLabel welcomeLabel;
     JButton startButton;
@@ -21,6 +23,8 @@ public class GoogleAuthentication extends JPanel {
     GoogleAuthentication(ApplicationController applicationController){
         this.applicationController = applicationController;
         this.googleController = applicationController.getGoogleController();
+        this.applicationController.getCreationConfiguration().addPropertyChangeListener(this);
+
 
         SpringLayout layout = new SpringLayout();
         setLayout(layout);
@@ -49,7 +53,12 @@ public class GoogleAuthentication extends JPanel {
         layout.putConstraint(SpringLayout.HORIZONTAL_CENTER, startButton, 0, SpringLayout.HORIZONTAL_CENTER, this);
         layout.putConstraint(SpringLayout.VERTICAL_CENTER, startButton, 0, SpringLayout.VERTICAL_CENTER, this);
 
+    }
 
-
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        if(evt.getPropertyName().equals("isAuthenticated") && (boolean) evt.getNewValue()){
+            this.applicationController.advanceWindows();
+        }
     }
 }

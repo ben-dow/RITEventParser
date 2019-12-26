@@ -25,6 +25,8 @@ public class ChooseEvents extends JPanel implements PropertyChangeListener {
     JButton removeFromSelected;
     JButton submitButton;
 
+    JLabel messageStatus;
+
     JTextArea eventDescription;
 
     ApplicationController applicationController;
@@ -41,6 +43,9 @@ public class ChooseEvents extends JPanel implements PropertyChangeListener {
 
         welcomeLabel = new JLabel("Confirm Events to Create");
         topControls.add(welcomeLabel);
+
+        messageStatus = new JLabel("0 / 0");
+        topControls.add(messageStatus);
 
         loadEmails = new JButton("Load Emails");
         loadEmails.addActionListener(new ActionListener() {
@@ -78,13 +83,10 @@ public class ChooseEvents extends JPanel implements PropertyChangeListener {
         selectedEventsScroller.setPreferredSize(new Dimension(300, 200));
         add(selectedEventsScroller);
 
-        selectedEvents.addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                if (selectedEvents.getSelectedValue() != null) {
-                    eventDescription.setText(((CalendarEvent) selectedEvents.getSelectedValue()).toDetailedString());
-                    allEvents.clearSelection();
-                }
+        selectedEvents.addListSelectionListener(e -> {
+            if (selectedEvents.getSelectedValue() != null) {
+                eventDescription.setText(((CalendarEvent) selectedEvents.getSelectedValue()).toDetailedString());
+                allEvents.clearSelection();
             }
         });
 
@@ -93,14 +95,10 @@ public class ChooseEvents extends JPanel implements PropertyChangeListener {
 
         addAll = new JButton("Add All Events");
         addAll.setAlignmentX(Component.CENTER_ALIGNMENT);
-        addAll.addActionListener(new ActionListener() {
+        addAll.addActionListener(e -> {
+            applicationController.getCreationConfiguration().selectAllEvents();
 
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                applicationController.getCreationConfiguration().selectAllEvents();
-
-                allEvents.clearSelection();
-            }
+            allEvents.clearSelection();
         });
         controlButtons.add(addAll);
 
@@ -191,11 +189,19 @@ public class ChooseEvents extends JPanel implements PropertyChangeListener {
             allEvents.setListData(((List) evt.getNewValue()).toArray());
             allEvents.updateUI();
 
+            messageStatus.setText(((List) evt.getNewValue()).size() + "/" + applicationController.getCreationConfiguration().getTotalMessageFound());
+            messageStatus.updateUI();
+
         }
 
         if ("selectedEvents".equals(evt.getPropertyName())) {
             selectedEvents.setListData(((List) evt.getNewValue()).toArray());
             selectedEvents.updateUI();
+        }
+
+        if("totalMessageFound".equals(evt.getPropertyName())){
+            messageStatus.setText( 0 + "/" + evt.getNewValue());
+            messageStatus.updateUI();
         }
 
     }

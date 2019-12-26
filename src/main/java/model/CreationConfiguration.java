@@ -10,19 +10,34 @@ public class CreationConfiguration {
     private HashMap<String,String> calendars;
     private List<CalendarEvent> selectedEvents;
     private List<CalendarEvent> allEvents;
+    private boolean isAuthenticated;
+
+    private Integer totalMessageFound;
+    private Integer messagesProcessed;
 
     private PropertyChangeSupport propChangeSupport;
 
     public CreationConfiguration(){
         super();
-        selectedEvents = new ArrayList<CalendarEvent>();
-        allEvents = new ArrayList<CalendarEvent>();
+        selectedEvents = new ArrayList<>();
+        allEvents = new ArrayList<>();
         propChangeSupport = new PropertyChangeSupport(this);
-        calendars = new HashMap<String, String>();
+        calendars = new HashMap<>();
+        isAuthenticated = false;
     }
 
     public void addPropertyChangeListener(PropertyChangeListener pcl) {
         propChangeSupport.addPropertyChangeListener(pcl);
+    }
+
+    public void setAuthenticated(boolean isAuthenticated){
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this,"isAuthenticated", this.isAuthenticated, isAuthenticated));
+        this.isAuthenticated = isAuthenticated;
+
+    }
+
+    public boolean isAuthenticated(){
+        return isAuthenticated;
     }
 
     public void removePropertyChangeListener(PropertyChangeListener pcl) {
@@ -33,7 +48,7 @@ public class CreationConfiguration {
         allEvents.add(event);
     }
 
-    public void addEvents(List<CalendarEvent> events){
+    public synchronized void addEvents(List<CalendarEvent> events){
         events.addAll(this.allEvents);
         propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "allEvents", this.allEvents, events));
 
@@ -140,5 +155,27 @@ public class CreationConfiguration {
 
     public List<CalendarEvent> getAllEvents() {
         return allEvents;
+    }
+
+    public Integer getTotalMessageFound() {
+        return totalMessageFound;
+    }
+
+    public void setTotalMessageFound(Integer totalMessageFound) {
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "totalMessageFound", this.totalMessageFound,totalMessageFound));
+        this.totalMessageFound = totalMessageFound;
+    }
+
+    public Integer getMessagesProcessed() {
+        return messagesProcessed;
+    }
+
+    public void incrementMessagesProcessed() {
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "messagesProcessed", this.messagesProcessed,this.messagesProcessed++));
+        this.messagesProcessed++;
+    }
+    public void resetMessagesProcessed(){
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "messagesProcessed", this.messagesProcessed,0));
+        this.messagesProcessed = 0;
     }
 }
