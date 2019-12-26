@@ -22,6 +22,8 @@ import com.google.api.services.gmail.GmailScopes;
 import com.google.api.services.gmail.model.Message;
 import com.google.api.services.gmail.model.MessagePart;
 import model.CalendarEvent;
+import util.EventCollisionException;
+import util.Pair;
 
 import javax.swing.*;
 import java.io.FileNotFoundException;
@@ -118,7 +120,7 @@ public class GoogleController {
         // Print the labels in the user's account.
         String user = "me";
         logger.info("\"Reservation\" \"for RIT Players\"");
-        List<Message> messages = gmailService.users().messages().list(user).setQ("\"Reservation\" \"for RIT Players\" ").execute().getMessages();
+        List<Message> messages = gmailService.users().messages().list(user).setQ("Bookings/ Details").execute().getMessages();
 
         applicationController.getCreationConfiguration().setTotalMessageFound(messages.size());
         applicationController.getCreationConfiguration().resetMessagesProcessed();
@@ -178,7 +180,7 @@ public class GoogleController {
                 text += builder.toString().replaceAll("<\\s*[^>]*>","");
 
 
-                String resNumberRegex = "Reservation (\\d*)";
+                String resNumberRegex = "Reservation:? (\\d*)";
                 Pattern resNumberPattern = Pattern.compile(resNumberRegex);
                 Matcher resNumberMatcher = resNumberPattern.matcher(text);
                 String resNumber = "";
@@ -265,46 +267,77 @@ public class GoogleController {
         String calendarId = applicationController.getCreationConfiguration().getCalendars().get(calName);
 
         for(CalendarEvent event : applicationController.getCreationConfiguration().getSelectedEvents()) {
-
-            List<Event> potentialCollisions = getEventsBetweenTimes(event.getStartTime(), event.getEndTime(), calendarId);
-
-            Event googleEvent = new Event()
-                    .setSummary(event.getEventName())
-                    .setLocation(event.getLocation())
-                    .setDescription("Confirmation ID: " + event.getConfirmationID());
-
-            EventDateTime start = new EventDateTime()
-                    .setDateTime(event.getStartTime())
-                    .setTimeZone("America/New_York");
-            googleEvent.setStart(start);
-
-            EventDateTime end = new EventDateTime()
-                    .setDateTime(event.getEndTime())
-                    .setTimeZone("America/New_York");
-            googleEvent.setEnd(end);
-
-
-            boolean collides = false;
-            for(Event googEvent: potentialCollisions){
-                if(googEvent.getDescription().equals(googleEvent.getDescription())){
-                    collides = true;
-                }
-            }
-
-
-            try {
-                if(!collides) {
-                    calendarService.events().insert(calendarId, googleEvent).execute();
-                }
-                else{
-                    System.out.println("Collision!");
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
+            createCalendarEvent(event,calendarId);
         }
         applicationController.advanceWindows();
+    }
+
+    private void createCalendarEvent(CalendarEvent event, String calendarId){
+
+        SwingWorker<Pair<CalendarEvent,Exception>, Void> worker = new SwingWorker<Pair<CalendarEvent,Exception>, Void>() {
+
+            @Override
+            protected Pair<CalendarEvent,Exception> doInBackground() {
+                List<Event> potentialCollisions = getEventsBetweenTimes(event.getStartTime(), event.getEndTime(), calendarId);
+
+                Event googleEvent = new Event()
+                        .setSummary(event.getEventName())
+                        .setLocation(event.getLocation())
+                        .setDescription("Confirmation ID: " + event.getConfirmationID());
+
+                EventDateTime start = new EventDateTime()
+                        .setDateTime(event.getStartTime())
+                        .setTimeZone("America/New_York");
+                googleEvent.setStart(start);
+
+                EventDateTime end = new EventDateTime()
+                        .setDateTime(event.getEndTime())
+                        .setTimeZone("America/New_York");
+                googleEvent.setEnd(end);
+
+
+                boolean collides = false;
+                for(Event googEvent: potentialCollisions){
+                    if(googEvent.getDescription().equals(googleEvent.getDescription())){
+                        collides = true;
+                    }
+                }
+
+
+                try {
+                    if(!collides) {
+                        calendarService.events().insert(calendarId, googleEvent).execute();
+                    }
+                    else{
+                        throw new EventCollisionException("Event with reservation id " + event.getConfirmationID() + " collided with existing event");
+                    }
+                } catch (IOException | EventCollisionException e) {
+                    return new Pair<>(event, e);
+                }
+
+                return new Pair<>(event, null);
+
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Pair<CalendarEvent, Exception> result = get();
+
+                    if(result.getValue() != null){
+                        logger.info(result.toString());
+                        applicationController.getCreationConfiguration().addFailedCreation(result);
+                    }
+                    else {
+                        applicationController.getCreationConfiguration().addSuccesfulCreation(result.getKey());
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     public List<Event> getEventsBetweenTimes(DateTime start, DateTime end, String calendarId){

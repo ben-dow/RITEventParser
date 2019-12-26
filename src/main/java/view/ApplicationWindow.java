@@ -25,12 +25,16 @@ public class ApplicationWindow extends JFrame {
         cards.setLayout(new CardLayout());
 
         logger.info("Creating and adding Windows to Card Stack");
+
+
         cards.add(new WelcomeScreen(applicationController));
         cards.add(new GoogleAuthentication(applicationController));
         cards.add(new ChooseEvents(applicationController));
         cards.add(new SelectCalendar(applicationController));
         cards.add(new VerifyConfiguration(applicationController));
-        cards.add(new CreationComplete());
+        cards.add(new CreatingEvents(applicationController));
+        cards.add(new ProcessComplete(applicationController));
+
 
 
         add(cards);

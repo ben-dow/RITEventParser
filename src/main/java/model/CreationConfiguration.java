@@ -1,5 +1,8 @@
 package model;
 
+
+import util.Pair;
+
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -10,10 +13,15 @@ public class CreationConfiguration {
     private HashMap<String,String> calendars;
     private List<CalendarEvent> selectedEvents;
     private List<CalendarEvent> allEvents;
+
+    private List<CalendarEvent> successfulCreation;
+    private List<Pair<CalendarEvent, Exception>> failedCreation;
     private boolean isAuthenticated;
 
     private Integer totalMessageFound;
     private Integer messagesProcessed;
+
+    private boolean eventsCreated;
 
     private PropertyChangeSupport propChangeSupport;
 
@@ -24,6 +32,11 @@ public class CreationConfiguration {
         propChangeSupport = new PropertyChangeSupport(this);
         calendars = new HashMap<>();
         isAuthenticated = false;
+
+        this.successfulCreation = new ArrayList<>();
+        this.failedCreation = new ArrayList<>();
+
+        this.eventsCreated = false;
     }
 
     public void addPropertyChangeListener(PropertyChangeListener pcl) {
@@ -177,5 +190,46 @@ public class CreationConfiguration {
     public void resetMessagesProcessed(){
         propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "messagesProcessed", this.messagesProcessed,0));
         this.messagesProcessed = 0;
+    }
+
+    public List<CalendarEvent> getSuccessfulCreation() {
+        return successfulCreation;
+    }
+
+    public List<Pair<CalendarEvent, Exception>> getFailedCreation() {
+        return failedCreation;
+    }
+
+    public void addSuccesfulCreation(CalendarEvent e){
+        List<CalendarEvent> oldSuccessfulCreation = new ArrayList<>();
+        oldSuccessfulCreation.addAll(this.successfulCreation);
+        successfulCreation.add(e);
+
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "successfulCreation", oldSuccessfulCreation,successfulCreation));
+
+        if(this.failedCreation.size() + this.successfulCreation.size() == this.selectedEvents.size()){
+            setEventsCreated(true);
+        }
+    }
+
+    public void addFailedCreation(Pair<CalendarEvent, Exception> e){
+        List<Pair<CalendarEvent, Exception>> oldFailedCreation = new ArrayList<>();
+        oldFailedCreation.addAll(this.failedCreation);
+        failedCreation.add(e);
+
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "failedCreation", oldFailedCreation, this.failedCreation));
+
+        if(this.failedCreation.size() + this.successfulCreation.size() == this.selectedEvents.size()){
+            setEventsCreated(true);
+        }
+    }
+
+    public boolean isEventsCreated() {
+        return eventsCreated;
+    }
+
+    public void setEventsCreated(boolean eventsCreated) {
+        propChangeSupport.firePropertyChange(new PropertyChangeEvent(this, "eventsCreated", this.eventsCreated, eventsCreated));
+        this.eventsCreated = eventsCreated;
     }
 }
