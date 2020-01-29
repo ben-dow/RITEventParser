@@ -179,7 +179,6 @@ public class GoogleController {
                 getPlainTextFromMessageParts(msg.getPayload().getParts(),builder);
                 text += builder.toString().replaceAll("<\\s*[^>]*>","");
 
-
                 String resNumberRegex = "Reservation:? (\\d*)";
                 Pattern resNumberPattern = Pattern.compile(resNumberRegex);
                 Matcher resNumberMatcher = resNumberPattern.matcher(text);
@@ -190,7 +189,7 @@ public class GoogleController {
 
                 logger.info("Found Res Number: " + resNumber);
 
-                String eventInfoRegex = "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (January|Feburary|March|April|May|June|July|August|September|October|November|December) (\\d?\\d), (20\\d\\d)\\r\\n\\r?\\n?(\\d?\\d:\\d\\d (PM|AM)) - (\\d?\\d:\\d\\d (PM|AM)) (.*) \\(Student Org (Space|Event) (Confirmed|Request|Approved)\\) (.*)";
+                String eventInfoRegex = "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (January|February|March|April|May|June|July|August|September|October|November|December) (\\d?\\d), (20\\d\\d)\\r\\n\\r?\\n?(\\d?\\d:\\d\\d (PM|AM)) - (\\d?\\d:\\d\\d (PM|AM)) (.*) \\(Student Org (Space|Event) (Confirmed|Request|Approved)\\) (.*)";
                 Pattern eventInfoPattern = Pattern.compile(eventInfoRegex);
                 Matcher eventInfoMatcher = eventInfoPattern.matcher(text);
                 ArrayList<CalendarEvent> events = new ArrayList<>();
